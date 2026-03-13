@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>GARA: CORE_QUIZ</title>
+    
+    <!-- PWA & IOS Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="GARA_100">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#050505">
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Black+Ops+One&display=swap');
+
+        :root {
+            --bg: #050505;
+            --panel: #0d0d0d;
+            --accent: #d4af37;
+            --text: #a0a0a0;
+            --border: #222;
+            --success: #00ff41;
+            --danger: #ff4444;
+        }
+
+        * { 
+            box-sizing: border-box; 
+            -webkit-tap-highlight-color: transparent; 
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'JetBrains Mono', monospace;
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+        }
+
+        #game-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            max-width: 600px;
+            margin: 0 auto;
+            width: 100%;
+            justify-content: center;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid var(--accent);
+            padding-bottom: 10px;
+            position: relative;
+        }
+
+        .header h1 {
+            font-family: 'Black Ops One', cursive;
+            color: var(--accent);
+            margin: 0;
+            font-size: 1.8rem;
+            letter-spacing: 2px;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.7rem;
+            margin-top: 5px;
+            color: #666;
+        }
+
+        #question-box {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            padding: 25px;
+            margin-bottom: 20px;
+            min-height: 120px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            position: relative;
+            box-shadow: inset 0 0 15px rgba(212, 175, 55, 0.05);
+        }
+
+        #question-text { font-size: 1.1rem; font-weight: bold; color: #fff; }
+
+        .options-grid { display: grid; gap: 10px; }
+
+        .option-btn {
+            background: #111; border: 1px solid #333; color: #888;
+            padding: 16px; border-radius: 4px; font-family: inherit;
+            font-size: 0.9rem; text-align: left; transition: 0.2s;
+            cursor: pointer; outline: none;
+        }
+
+        .option-btn:active { background: #222; transform: scale(0.98); }
+        .option-btn.correct { background: rgba(0, 255, 65, 0.1); border-color: var(--success); color: var(--success); }
+        .option-btn.wrong { background: rgba(255, 68, 68, 0.1); border-color: var(--danger); color: var(--danger); }
+
+        #feedback { margin-top: 15px; text-align: center; height: 20px; font-size: 0.8rem; font-weight: bold; }
+
+        .progress-bar { position: fixed; top: 0; left: 0; height: 3px; background: var(--accent); width: 0%; transition: 0.3s; }
+
+        /* --- SCREENS --- */
+        #start-screen, #end-screen, #data-screen {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: var(--bg); z-index: 100;
+            display: flex; flex-direction: column; align-items: center;
+            justify-content: center; padding: 20px; text-align: center;
+        }
+
+        #data-screen { justify-content: flex-start; overflow-y: auto; padding-top: 60px; }
+
+        .btn-large {
+            background: var(--accent); color: #000; border: none;
+            padding: 15px 40px; font-family: 'Black Ops One', cursive;
+            font-size: 1.1rem; margin-top: 15px; cursor: pointer; letter-spacing: 2px;
+        }
+
+        .btn-ghost {
+            background: transparent; border: 1px solid #444; color: #444;
+            padding: 8px 15px; font-family: inherit; font-size: 0.7rem; margin-top: 10px;
+        }
+
+        .hidden { display: none !important; }
+
+        /* --- DATA MANAGER --- */
+        .q-item {
+            background: #111; border: 1px solid #222; width: 100%; max-width: 500px;
+            padding: 15px; margin-bottom: 10px; text-align: left; position: relative;
+        }
+        .q-item span { display: block; font-size: 0.8rem; color: #fff; margin-bottom: 5px; }
+        .q-item small { color: var(--accent); font-size: 0.7rem; }
+        .del-btn { position: absolute; right: 10px; top: 10px; color: var(--danger); background: none; border: none; font-size: 1rem; }
+
+        input, select {
+            width: 100%; background: #111; border: 1px solid #333; color: #fff;
+            padding: 10px; margin-bottom: 10px; font-family: inherit; font-size: 0.8rem;
+        }
+
+        .nav-btn { position: absolute; top: 20px; right: 20px; z-index: 200; border-color: var(--accent); color: var(--accent); }
+
+        .scanline {
+            width: 100%; height: 2px; background: rgba(212, 175, 55, 0.1);
+            position: absolute; top: 0; left: 0; animation: scan 4s linear infinite;
+        }
+        @keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
+    </style>
+</head>
+<body>
+
+    <div class="progress-bar" id="progress"></div>
+
+    <!-- START SCREEN -->
+    <div id="start-screen">
+        <h1 style="font-family:'Black Ops One'; color:var(--accent); font-size: 2.2rem;">GARA: CORE_QUIZ</h1>
+        <p style="color:#666; margin-bottom: 20px;">[ SYSTEM_TRAINING_MODULE_v2 ]</p>
+        <button class="btn-large" onclick="startGame()">INITIALIZE</button>
+        <button class="btn-ghost" onclick="toggleDataScreen()">MANAGE_DATA_SET</button>
+    </div>
+
+    <!-- DATA MANAGEMENT SCREEN -->
+    <div id="data-screen" class="hidden">
+        <button class="nav-btn" onclick="toggleDataScreen()">CLOSE</button>
+        <h2 style="color:var(--accent); font-family:'Black Ops One';">DATA_SET_CONTROL</h2>
+        
+        <!-- Import/Export -->
+        <div style="display:flex; gap:10px; margin-bottom: 20px;">
+            <button class="btn-ghost" onclick="exportQuestions()" style="border-color:var(--accent); color:var(--accent);">EXPORT_JSON</button>
+            <button class="btn-ghost" onclick="document.getElementById('import-file').click()">IMPORT_JSON</button>
+            <input type="file" id="import-file" style="display:none" onchange="importQuestions(this)">
+        </div>
+
+        <!-- Add New -->
+        <div style="background:#0a0a0a; padding:15px; border:1px solid #222; width:100%; max-width:500px; margin-bottom:20px;">
+            <input type="text" id="new-q" placeholder="QUESTION TEXT">
+            <input type="text" id="new-a" placeholder="CORRECT ANSWER">
+            <input type="text" id="new-o1" placeholder="WRONG OPTION 1">
+            <input type="text" id="new-o2" placeholder="WRONG OPTION 2">
+            <input type="text" id="new-o3" placeholder="WRONG OPTION 3">
+            <button class="btn-large" style="width:100%; padding:10px;" onclick="addQuestion()">[+] ADD_TO_DATABASE</button>
+        </div>
+
+        <div id="q-list-container" style="width:100%; display:flex; flex-direction:column; align-items:center;">
+            <!-- Questions list -->
+        </div>
+    </div>
+
+    <!-- END SCREEN -->
+    <div id="end-screen" class="hidden">
+        <h1 style="font-family:'Black Ops One'; color:var(--accent);">MISSION COMPLETE</h1>
+        <p id="final-score" style="font-size: 2rem; margin: 15px 0; color: #fff;"></p>
+        <p id="rank-text" style="color: var(--success); margin-bottom: 20px;"></p>
+        <button class="btn-large" onclick="location.reload()">REBOOT</button>
+    </div>
+
+    <!-- GAMEPLAY CONTAINER -->
+    <div id="game-container">
+        <div class="header">
+            <button onclick="location.reload()" style="position: absolute; left: 0; top: 0; font-size: 0.6rem; border-color: var(--danger); color: var(--danger);">EXIT_CORE</button>
+            <h1>GARA // CORE</h1>
+            <div class="stats">
+                <span id="stat-q">QUE: 1/--</span>
+                <span id="stat-s">SCORE: 0</span>
+            </div>
+        </div>
+
+        <div id="question-box">
+            <div class="scanline"></div>
+            <div id="question-text">LOADING...</div>
+        </div>
+
+        <div class="options-grid" id="options"></div>
+        <div id="feedback"></div>
+    </div>
+
+    <script>
+        // Default Data
+        let questions = [
+            { q: "Gewindestangen", a: "Threaded rods", o: ["Welding rods", "Threaded rods", "Copper pipes", "Steel beams"] },
+            { q: "Potenzialausgleichsschiene", a: "Equipotential bonding rail", o: ["Circuit breaker", "Fuse box", "Voltage tester", "Equipotential bonding rail"] }
+        ];
+
+        let activeQuestions = [];
+        let currentIdx = 0;
+        let score = 0;
+        let acceptingAnswers = false;
+
+        window.onload = () => {
+            const saved = localStorage.getItem('gara_quiz_data');
+            if (saved) questions = JSON.parse(saved);
+            renderQuestionList();
+        };
+
+        function saveLocal() {
+            localStorage.setItem('gara_quiz_data', JSON.stringify(questions));
+            renderQuestionList();
+        }
+
+        function toggleDataScreen() {
+            document.getElementById('data-screen').classList.toggle('hidden');
+        }
+
+        // --- DATA MGMT ---
+        function addQuestion() {
+            const q = document.getElementById('new-q').value;
+            const a = document.getElementById('new-a').value;
+            const o1 = document.getElementById('new-o1').value;
+            const o2 = document.getElementById('new-o2').value;
+            const o3 = document.getElementById('new-o3').value;
+
+            if(!q || !a || !o1) return alert("MISSING_DATA_FIELDS");
+
+            questions.push({
+                q: q,
+                a: a,
+                o: [a, o1, o2 || "N/A", o3 || "N/A"]
+            });
+
+            // Clear inputs
+            ['new-q', 'new-a', 'new-o1', 'new-o2', 'new-o3'].forEach(id => document.getElementById(id).value = "");
+            saveLocal();
+        }
+
+        function deleteQuestion(idx) {
+            questions.splice(idx, 1);
+            saveLocal();
+        }
+
+        function renderQuestionList() {
+            const container = document.getElementById('q-list-container');
+            container.innerHTML = "";
+            questions.forEach((q, i) => {
+                const div = document.createElement('div');
+                div.className = 'q-item';
+                div.innerHTML = `
+                    <span>${q.q}</span>
+                    <small>CORRECT: ${q.a}</small>
+                    <button class="del-btn" onclick="deleteQuestion(${i})">×</button>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function exportQuestions() {
+            const blob = new Blob([JSON.stringify(questions)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `GARA_QUIZ_DATA_${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+        }
+
+        function importQuestions(input) {
+            const reader = new FileReader();
+            reader.onload = e => {
+                try {
+                    questions = JSON.parse(e.target.result);
+                    saveLocal();
+                    alert("IMPORT_SUCCESSFUL");
+                } catch(err) { alert("ERROR_INVALID_JSON"); }
+            };
+            reader.readAsText(input.files[0]);
+        }
+
+        // --- GAMEPLAY ---
+        function startGame() {
+            if (questions.length < 1) return alert("DATABASE_EMPTY_ADD_QUESTIONS_FIRST");
+            document.getElementById('start-screen').classList.add('hidden');
+            
+            // Randomize questions for this session
+            activeQuestions = [...questions].sort(() => Math.random() - 0.5);
+            
+            currentIdx = 0; score = 0;
+            nextQuestion();
+        }
+
+        function nextQuestion() {
+            if (currentIdx >= activeQuestions.length) return endGame();
+            acceptingAnswers = true;
+            const q = activeQuestions[currentIdx];
+            document.getElementById('question-text').innerText = q.q;
+            document.getElementById('stat-q').innerText = `QUE: ${currentIdx + 1}/${activeQuestions.length}`;
+            document.getElementById('stat-s').innerText = `SCORE: ${score}`;
+            document.getElementById('progress').style.width = `${(currentIdx / activeQuestions.length) * 100}%`;
+            document.getElementById('feedback').innerText = "";
+            
+            const optionsBox = document.getElementById('options');
+            optionsBox.innerHTML = "";
+            const shuffled = [...q.o].sort(() => Math.random() - 0.5);
+            shuffled.forEach(opt => {
+                const btn = document.createElement('button');
+                btn.className = 'option-btn';
+                btn.innerText = opt;
+                btn.onclick = () => checkAnswer(opt, btn);
+                optionsBox.appendChild(btn);
+            });
+        }
+
+        function checkAnswer(selected, btn) {
+            if (!acceptingAnswers) return;
+            acceptingAnswers = false;
+            const q = activeQuestions[currentIdx];
+            if (selected === q.a) {
+                score += 100;
+                btn.classList.add('correct');
+            } else {
+                btn.classList.add('wrong');
+                Array.from(document.querySelectorAll('.option-btn')).forEach(b => {
+                    if (b.innerText === q.a) b.classList.add('correct');
+                });
+            }
+            setTimeout(() => { currentIdx++; nextQuestion(); }, 1200);
+        }
+
+        function endGame() {
+            document.getElementById('end-screen').classList.remove('hidden');
+            document.getElementById('final-score').innerText = score;
+            document.getElementById('rank-text').innerText = score > (activeQuestions.length * 80) ? "RANK: ELITE" : "RANK: OPERATIVE";
+            document.getElementById('progress').style.width = `100%`;
+        }
+    </script>
+</body>
+</html>
