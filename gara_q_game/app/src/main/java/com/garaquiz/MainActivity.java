@@ -3,6 +3,8 @@ package com.garaquiz;
 import android.app.Activity;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.ViewGroup;
 import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
@@ -11,27 +13,36 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.widget.Toast;
+import androidx.activity.ComponentActivity;
 import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.appcompat.app.AppCompatActivity;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends ComponentActivity {
     private ValueCallback<Uri[]> fileChooserCallback;
-    private String pendingExportJson;
+    private volatile String pendingExportJson;
+    private Handler mainHandler;
+
+    private androidx.activity.result.ActivityResultLauncher<String> createDocumentLauncher;
+    private androidx.activity.result.ActivityResultLauncher<android.content.Intent> fileChooserLauncher;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        mainHandler = new Handler(Looper.getMainLooper());
 
-        var createDocumentLauncher = registerForActivityResult(
+        createDocumentLauncher = registerForActivityResult(
             new ActivityResultContracts.CreateDocument("application/json"),
             uri -> {
                 if (uri != null) {
                     String json = pendingExportJson;
                     pendingExportJson = null;
                     if (json != null) {
-                        try (java.io.OutputStream os = getContentResolver().openOutputStream(uri)) {
+                        try {
+                            java.io.OutputStream os = getContentResolver().openOutputStream(uri);
                             if (os != null) {
-                                os.write(json.getBytes("UTF-8"));
+                                java.io.OutputStreamWriter writer = new java.io.OutputStreamWriter(os, "UTF-8");
+                                writer.write(json);
+                                writer.flush();
+                                writer.close();
                             }
                             Toast.makeText(this, "Exported", Toast.LENGTH_SHORT).show();
                         } catch (Exception e) {
@@ -39,14 +50,13 @@ public class MainActivity extends AppCompatActivity {
                         }
                     }
                 }
-            }
-        );
+            });
 
-        var fileChooserLauncher = registerForActivityResult(
+        fileChooserLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
                 if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
-                    var clipData = result.getData().getClipData();
+                    android.content.ClipData clipData = result.getData().getClipData();
                     if (clipData != null) {
                         int count = clipData.getItemCount();
                         Uri[] uris = new Uri[count];
@@ -60,8 +70,7 @@ public class MainActivity extends AppCompatActivity {
                     if (fileChooserCallback != null) fileChooserCallback.onReceiveValue(null);
                 }
                 fileChooserCallback = null;
-            }
-        );
+            });
 
         WebView webView = new WebView(this);
         webView.getSettings().setJavaScriptEnabled(true);
@@ -74,20 +83,11 @@ public class MainActivity extends AppCompatActivity {
             @JavascriptInterface
             public void exportJson(String json, String filename) {
                 pendingExportJson = json;
-                createDocumentLauncher.launch(filename);
+                mainHandler.post(() -> createDocumentLauncher.launch(filename));
             }
         }, "AndroidBridge");
 
-        webView.setWebViewClient(new WebViewClient() {
-            @Override
-            public void onPageFinished(WebView view, String url) {
-                view.evaluateJavascript(
-                    "(function(){window.exportQuestions=function(){" +
-                    "var json=JSON.stringify(window.questions);" +
-                    "var name='GARA_QUIZ_DATA_'+new Date().toISOString().slice(0,10)+'.json';" +
-                    "AndroidBridge.exportJson(json,name);};})();", null);
-            }
-        });
+        webView.setWebViewClient(new WebViewClient());
 
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
@@ -103,15 +103,5 @@ public class MainActivity extends AppCompatActivity {
         FrameLayout layout = new FrameLayout(this);
         layout.addView(webView, new ViewGroup.LayoutParams(-1, -1));
         setContentView(layout);
-    }
-
-    @Override
-    public void onBackPressed() {
-        WebView webView = (WebView) ((FrameLayout) findViewById(android.R.id.content)).getChildAt(0);
-        if (webView != null && webView.canGoBack()) {
-            webView.goBack();
-        } else {
-            super.onBackPressed();
-        }
     }
 }

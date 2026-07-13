@@ -335,10 +335,19 @@
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
-                    const raw = e.target.result;
-                    if (!raw || raw.trim().length === 0) return alert("FILE_IS_EMPTY");
-                    const parsed = JSON.parse(raw);
-                    if (!Array.isArray(parsed)) return alert("ERROR_IMPORT_EXPECTED_ARRAY");
+                    let raw = e.target.result;
+                    if (!raw) return alert("FILE_IS_EMPTY");
+                    raw = raw.replace(/^\uFEFF/, '');
+                    raw = raw.trim();
+                    if (raw.length === 0) return alert("FILE_IS_EMPTY");
+                    let parsed = JSON.parse(raw);
+                    if (!Array.isArray(parsed)) {
+                        if (parsed.questions && Array.isArray(parsed.questions)) {
+                            parsed = parsed.questions;
+                        } else {
+                            return alert("ERROR_IMPORT_EXPECTED_ARRAY");
+                        }
+                    }
                     for (let i = 0; i < parsed.length; i++) {
                         const item = parsed[i];
                         if (!item.q || !item.a || !Array.isArray(item.o) || item.o.length < 2) {
@@ -349,7 +358,7 @@
                     saveLocal();
                     alert("IMPORT_SUCCESSFUL_" + questions.length + "_QUESTIONS");
                 } catch(e) {
-                    alert("ERROR_INVALID_JSON_SYNTAX");
+                    alert("ERROR_INVALID_JSON_SYNTAX_" + e.message);
                 }
             };
             reader.onerror = function() {
