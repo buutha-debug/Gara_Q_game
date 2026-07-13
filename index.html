@@ -226,7 +226,6 @@
     </div>
 
     <script>
-        // Default Data
         let questions = [
             { q: "Gewindestangen", a: "Threaded rods", o: ["Welding rods", "Threaded rods", "Copper pipes", "Steel beams"] },
             { q: "Potenzialausgleichsschiene", a: "Equipotential bonding rail", o: ["Circuit breaker", "Fuse box", "Voltage tester", "Equipotential bonding rail"] }
@@ -238,13 +237,25 @@
         let acceptingAnswers = false;
 
         window.onload = () => {
-            const saved = localStorage.getItem('gara_quiz_data');
-            if (saved) questions = JSON.parse(saved);
+            try {
+                const saved = localStorage.getItem('gara_quiz_data');
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (Array.isArray(parsed)) questions = parsed;
+                    else localStorage.removeItem('gara_quiz_data');
+                }
+            } catch(e) {
+                localStorage.removeItem('gara_quiz_data');
+            }
             renderQuestionList();
         };
 
         function saveLocal() {
-            localStorage.setItem('gara_quiz_data', JSON.stringify(questions));
+            try {
+                localStorage.setItem('gara_quiz_data', JSON.stringify(questions));
+            } catch(e) {
+                alert("STORAGE_ERROR_CANNOT_SAVE");
+            }
             renderQuestionList();
         }
 
@@ -252,25 +263,40 @@
             document.getElementById('data-screen').classList.toggle('hidden');
         }
 
-        // --- DATA MGMT ---
+        function shuffleArray(arr) {
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+
         function addQuestion() {
-            const q = document.getElementById('new-q').value;
-            const a = document.getElementById('new-a').value;
-            const o1 = document.getElementById('new-o1').value;
-            const o2 = document.getElementById('new-o2').value;
-            const o3 = document.getElementById('new-o3').value;
+            try {
+                const q = document.getElementById('new-q').value.trim();
+                const a = document.getElementById('new-a').value.trim();
+                const o1 = document.getElementById('new-o1').value.trim();
+                const o2 = document.getElementById('new-o2').value.trim();
+                const o3 = document.getElementById('new-o3').value.trim();
 
-            if(!q || !a || !o1) return alert("MISSING_DATA_FIELDS");
+                if (!q) return alert("MISSING_QUESTION_TEXT");
+                if (!a) return alert("MISSING_CORRECT_ANSWER");
+                if (!o1) return alert("NEED_AT_LEAST_ONE_WRONG_OPTION");
 
-            questions.push({
-                q: q,
-                a: a,
-                o: [a, o1, o2 || "N/A", o3 || "N/A"]
-            });
+                const wrongOptions = [o1];
+                if (o2) wrongOptions.push(o2);
+                if (o3) wrongOptions.push(o3);
 
-            // Clear inputs
-            ['new-q', 'new-a', 'new-o1', 'new-o2', 'new-o3'].forEach(id => document.getElementById(id).value = "");
-            saveLocal();
+                const allOptions = shuffleArray([a, ...wrongOptions]);
+
+                questions.push({ q: q, a: a, o: allOptions });
+
+                ['new-q', 'new-a', 'new-o1', 'new-o2', 'new-o3'].forEach(id => document.getElementById(id).value = "");
+                saveLocal();
+                alert("QUESTION_ADDED");
+            } catch(e) {
+                alert("ERROR_ADDING_QUESTION_" + e.message);
+            }
         }
 
         function deleteQuestion(idx) {
@@ -281,47 +307,62 @@
         function renderQuestionList() {
             const container = document.getElementById('q-list-container');
             container.innerHTML = "";
+            if (!Array.isArray(questions) || questions.length === 0) {
+                container.innerHTML = '<div class="q-item"><span style="color:#666;">NO_QUESTIONS_IN_DATABASE</span></div>';
+                return;
+            }
             questions.forEach((q, i) => {
                 const div = document.createElement('div');
                 div.className = 'q-item';
-                div.innerHTML = `
-                    <span>${q.q}</span>
-                    <small>CORRECT: ${q.a}</small>
-                    <button class="del-btn" onclick="deleteQuestion(${i})">×</button>
-                `;
+                div.innerHTML = '<span>' + q.q + '</span><small>CORRECT: ' + q.a + '</small><button class="del-btn" onclick="deleteQuestion(' + i + ')">x</button>';
                 container.appendChild(div);
             });
         }
 
         function exportQuestions() {
-            const blob = new Blob([JSON.stringify(questions)], {type: 'application/json'});
+            if (!Array.isArray(questions) || questions.length === 0) return alert("DATABASE_EMPTY");
+            const blob = new Blob([JSON.stringify(questions, null, 2)], {type: 'application/json'});
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `GARA_QUIZ_DATA_${new Date().toISOString().slice(0,10)}.json`;
+            a.download = 'GARA_QUIZ_DATA_' + new Date().toISOString().slice(0,10) + '.json';
             a.click();
         }
 
         function importQuestions(input) {
+            const file = input.files[0];
+            if (!file) return;
             const reader = new FileReader();
-            reader.onload = e => {
+            reader.onload = function(e) {
                 try {
-                    questions = JSON.parse(e.target.result);
+                    const raw = e.target.result;
+                    if (!raw || raw.trim().length === 0) return alert("FILE_IS_EMPTY");
+                    const parsed = JSON.parse(raw);
+                    if (!Array.isArray(parsed)) return alert("ERROR_IMPORT_EXPECTED_ARRAY");
+                    for (let i = 0; i < parsed.length; i++) {
+                        const item = parsed[i];
+                        if (!item.q || !item.a || !Array.isArray(item.o) || item.o.length < 2) {
+                            return alert("ERROR_ITEM_" + (i+1) + "_MISSING_q_a_o_FIELDS");
+                        }
+                    }
+                    questions = parsed;
                     saveLocal();
-                    alert("IMPORT_SUCCESSFUL");
-                } catch(err) { alert("ERROR_INVALID_JSON"); }
+                    alert("IMPORT_SUCCESSFUL_" + questions.length + "_QUESTIONS");
+                } catch(e) {
+                    alert("ERROR_INVALID_JSON_SYNTAX");
+                }
             };
-            reader.readAsText(input.files[0]);
+            reader.onerror = function() {
+                alert("ERROR_READING_FILE");
+            };
+            reader.readAsText(file);
+            input.value = "";
         }
 
-        // --- GAMEPLAY ---
         function startGame() {
-            if (questions.length < 1) return alert("DATABASE_EMPTY_ADD_QUESTIONS_FIRST");
+            if (!Array.isArray(questions) || questions.length < 1) return alert("DATABASE_EMPTY_ADD_QUESTIONS_FIRST");
             document.getElementById('start-screen').classList.add('hidden');
-            
-            // Randomize questions for this session
-            activeQuestions = [...questions].sort(() => Math.random() - 0.5);
-            
+            activeQuestions = shuffleArray([...questions]);
             currentIdx = 0; score = 0;
             nextQuestion();
         }
@@ -331,19 +372,18 @@
             acceptingAnswers = true;
             const q = activeQuestions[currentIdx];
             document.getElementById('question-text').innerText = q.q;
-            document.getElementById('stat-q').innerText = `QUE: ${currentIdx + 1}/${activeQuestions.length}`;
-            document.getElementById('stat-s').innerText = `SCORE: ${score}`;
-            document.getElementById('progress').style.width = `${(currentIdx / activeQuestions.length) * 100}%`;
-            document.getElementById('feedback').innerText = "";
-            
+            document.getElementById('stat-q').innerText = 'QUE: ' + (currentIdx + 1) + '/' + activeQuestions.length;
+            document.getElementById('stat-s').innerText = 'SCORE: ' + score;
+            document.getElementById('progress').style.width = (currentIdx / activeQuestions.length * 100) + '%';
+            document.getElementById('feedback').innerText = '';
             const optionsBox = document.getElementById('options');
-            optionsBox.innerHTML = "";
-            const shuffled = [...q.o].sort(() => Math.random() - 0.5);
-            shuffled.forEach(opt => {
+            optionsBox.innerHTML = '';
+            const shuffled = shuffleArray([...q.o]);
+            shuffled.forEach(function(opt) {
                 const btn = document.createElement('button');
                 btn.className = 'option-btn';
                 btn.innerText = opt;
-                btn.onclick = () => checkAnswer(opt, btn);
+                btn.onclick = function() { checkAnswer(opt, btn); };
                 optionsBox.appendChild(btn);
             });
         }
@@ -357,18 +397,18 @@
                 btn.classList.add('correct');
             } else {
                 btn.classList.add('wrong');
-                Array.from(document.querySelectorAll('.option-btn')).forEach(b => {
+                Array.from(document.querySelectorAll('.option-btn')).forEach(function(b) {
                     if (b.innerText === q.a) b.classList.add('correct');
                 });
             }
-            setTimeout(() => { currentIdx++; nextQuestion(); }, 1200);
+            setTimeout(function() { currentIdx++; nextQuestion(); }, 1200);
         }
 
         function endGame() {
             document.getElementById('end-screen').classList.remove('hidden');
-            document.getElementById('final-score').innerText = score;
+            document.getElementById('final-score').innerText = '' + score;
             document.getElementById('rank-text').innerText = score > (activeQuestions.length * 80) ? "RANK: ELITE" : "RANK: OPERATIVE";
-            document.getElementById('progress').style.width = `100%`;
+            document.getElementById('progress').style.width = '100%';
         }
     </script>
 </body>
