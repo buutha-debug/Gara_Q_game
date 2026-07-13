@@ -184,7 +184,10 @@
         </div>
         <div id="paste-area" style="display:none; width:100%; max-width:500px; margin-bottom:15px;">
             <textarea id="paste-input" style="width:100%; height:150px; background:#111; border:1px solid #333; color:#fff; padding:10px; font-family:inherit; font-size:0.8rem; resize:vertical;" placeholder="PASTE_JSON_HERE"></textarea>
-            <button class="btn-large" style="width:100%; padding:10px; margin-top:5px;" onclick="importPastedJson()">LOAD</button>
+            <div style="display:flex; gap:10px; margin-top:5px;">
+                <button class="btn-large" style="flex:1; padding:10px;" onclick="importPastedJson()">LOAD</button>
+                <button class="btn-ghost" onclick="loadExampleJson()" style="border-color:var(--accent); color:var(--accent);">EXAMPLE</button>
+            </div>
         </div>
 
         <!-- Add New -->
@@ -425,6 +428,15 @@
             } catch(e) {
                 alert("ERROR_INVALID_JSON_SYNTAX_" + e.message);
             }
+        }
+
+        function loadExampleJson() {
+            document.getElementById('paste-input').value = JSON.stringify([
+                { q: "What is the capital of France?", a: "Paris", o: ["Paris", "London", "Berlin", "Madrid"] },
+                { q: "What is 2 + 2?", a: "4", o: ["3", "4", "5", "6"] },
+                { q: "Which planet is known as the Red Planet?", a: "Mars", o: ["Venus", "Mars", "Jupiter", "Saturn"] }
+            ], null, 2);
+            document.getElementById('paste-area').style.display = 'block';
         }
 
         function startGame() {
